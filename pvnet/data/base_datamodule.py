@@ -5,16 +5,12 @@ from glob import glob
 import torch
 from lightning.pytorch import LightningDataModule
 from ocf_data_sampler.numpy_sample.collate import stack_np_samples_into_batch
-from ocf_data_sampler.torch_datasets.sample.base import (
-    NumpyBatch,
-    SampleBase,
-    TensorBatch,
-    batch_to_tensor,
-)
+from ocf_data_sampler.numpy_sample.common_types import NumpySample, TensorBatch
+from ocf_data_sampler.torch_datasets.sample.base import SampleBase, batch_to_tensor
 from torch.utils.data import DataLoader, Dataset, Subset
 
 
-def collate_fn(samples: list[NumpyBatch]) -> TensorBatch:
+def collate_fn(samples: list[NumpySample]) -> TensorBatch:
     """Convert a list of NumpySample samples to a tensor batch"""
     return batch_to_tensor(stack_np_samples_into_batch(samples))
 
@@ -32,10 +28,10 @@ class PresavedSamplesDataset(Dataset):
         self.sample_paths = glob(f"{sample_dir}/*")
         self.sample_class = sample_class
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.sample_paths)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> NumpySample:
         sample = self.sample_class.load(self.sample_paths[idx])
         return sample.to_numpy()
 
