@@ -764,6 +764,20 @@ class BaseModel(pl.LightningModule, PVNetModelHubMixin):
 
     def training_step(self, batch, batch_idx):
         """Run training step"""
+        batch_size = None
+        for v in batch.values():
+            if isinstance(v, torch.Tensor):
+                batch_size = v.shape[0]
+                break
+            elif isinstance(v, dict):
+                for vv in v.values():
+                    if isinstance(vv, torch.Tensor):
+                        batch_size = vv.shape[0]
+                        break
+            if batch_size is not None:
+                break
+
+        print(f"[base_model: training_step] Batch size: {batch_size}")
         y_hat = self(batch)
 
         # Batch is adapted in the model forward method, but needs to be adapted here too

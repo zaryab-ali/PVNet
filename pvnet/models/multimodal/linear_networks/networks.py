@@ -1,5 +1,6 @@
 """Linear networks used for the fusion model"""
 from torch import nn, rand
+import torch
 
 from pvnet.models.multimodal.linear_networks.basic_blocks import (
     AbstractLinearNetwork,
@@ -151,7 +152,18 @@ class ResFCNet2(AbstractLinearNetwork):
 
     def forward(self, x):
         """Run model forward"""
+        if isinstance(x, torch.Tensor):
+            print(f"[linear_networks: networks.py] Input shape before: {x.shape}")
+        elif isinstance(x, dict) or isinstance(x, OrderedDict):
+            print("[linear_networks: networks.py] Input is a dict with shapes:")
+            for k, v in x.items():
+                if isinstance(v, torch.Tensor):
+                    print(f"  {k}: {tuple(v.shape)}")
+        else:
+            print(f"[linear_networks: networks.py] Input type: {type(x)}")
+
         x = self.cat_modes(x)
+        print(f"[linear_networks: networks.py] Input shape after: {x.shape}")
         return self.model(x)
 
 

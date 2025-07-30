@@ -408,6 +408,13 @@ class Model(BaseModel):
             time = self.time_fc1(time)
             modes["time"] = time
 
+            # ======================= Add this print before final stage =============
+        print("\n[Multimodal.forward] Shapes of modes being combined:")
+        for k, v in modes.items():
+            if isinstance(v, torch.Tensor):
+                print(f"  modes['{k}']: {tuple(v.shape)}")
+        # ======================================================================
+
         out = self.output_network(modes)
 
         if self.use_quantile_regression:

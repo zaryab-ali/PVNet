@@ -118,4 +118,7 @@ class ResidualLinearBlock2(nn.Module):
 
     def forward(self, x):
         """Run model forward"""
-        return self.model(x) + x
+        print(f"[linear network basic_blocks] Before residual add: {x.shape}")
+        y = self.model(x) + x
+        print(f"[linear network basic_blocks] Model(x) output: {y.shape}")
+        return y
