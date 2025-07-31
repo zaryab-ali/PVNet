@@ -1,12 +1,21 @@
 """Command line tool to push locally save model checkpoints to huggingface
 
-use:
+To use this script, you will need to write a custom model card. You can copy and fill out
+`pvnet/model_cards/empty_model_card_template.md` to get you started.
+
+These model cards should not be added to and version controlled in the repo since they are specific
+to each user.
+
+Then run using:
+
+```
 python checkpoint_to_huggingface.py "path/to/model/checkpoints" \
     --huggingface-repo="openclimatefix/pvnet_uk_region" \
     --wandb-repo="openclimatefix/pvnet2.1" \
-    --card-template-path="pvnet/models/model_cards/pv_uk_regional_model_card_template.md" \
+    --card-template-path="pvnet/models/model_cards/my_custom_model_card.md" \
     --local-path="~/tmp/this_model" \
     --no-push-to-hub
+```
 """
 
 import tempfile
@@ -47,19 +56,31 @@ def push_to_huggingface(
 
     is_ensemble = len(checkpoint_dir_paths) > 1
 
-    # Check if checkpoint dir name is wandb run ID
+    # Check that the wandb-IDs are correct
+    all_wandb_ids = [run.id for run in wandb.Api().runs(path=wandb_repo)]
+
+    # If the IDs are not supplied try and pull them from the checkpoint dir name
     if wandb_ids == []:
-        all_wandb_ids = [run.id for run in wandb.Api().runs(path=wandb_repo)]
         for path in checkpoint_dir_paths:
             dirname = path.split("/")[-1]
             if dirname in all_wandb_ids:
                 wandb_ids.append(dirname)
             else:
                 raise Exception(f"Could not find wand run for {path} within {wandb_repo}")
+    
+    # Else if they are provided check that they exist
+    else:
+        for wandb_id in wandb_ids:
+            if wandb_id not in all_wandb_ids:
+                raise Exception(f"Could not find wand run for {path} within {wandb_repo}")
 
-    model, model_config, data_config_path, datamodule_config_path = get_model_from_checkpoints(
-        checkpoint_dir_paths, val_best
-    )
+    (
+        model, 
+        model_config, 
+        data_config_path, 
+        datamodule_config_path, 
+        experiment_config_path,
+    ) = get_model_from_checkpoints(checkpoint_dir_paths, val_best)
 
     if not is_ensemble:
         wandb_ids = wandb_ids[0]
@@ -76,6 +97,7 @@ def push_to_huggingface(
         model_config=model_config,
         data_config_path=data_config_path,
         datamodule_config_path=datamodule_config_path,
+        experiment_config_path=experiment_config_path,
         wandb_repo=wandb_repo,
         wandb_ids=wandb_ids,
         card_template_path=card_template_path,
