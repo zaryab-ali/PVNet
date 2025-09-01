@@ -1,5 +1,6 @@
 """ Data module for pytorch lightning """
 
+import os
 from glob import glob
 
 import numpy as np
@@ -77,6 +78,7 @@ class BasePresavedDataModule(LightningDataModule):
             worker_init_fn=None,
             prefetch_factor=prefetch_factor,
             persistent_workers=persistent_workers,
+            multiprocessing_context="spawn" if num_workers>0 else None,
         )
 
     def _get_premade_samples_dataset(self, subdir: str) -> Dataset:
@@ -107,7 +109,7 @@ class BaseStreamedDataModule(LightningDataModule):
         train_period: list[str | None] = [None, None],
         val_period: list[str | None] = [None, None],
         seed: int | None = None,
-
+        dataset_pickle_dir: str | None = None,
     ):
         """Base Datamodule for streaming samples.
 
@@ -124,6 +126,8 @@ class BaseStreamedDataModule(LightningDataModule):
             train_period: Date range filter for train dataloader.
             val_period: Date range filter for val dataloader.
             seed: Random seed used in shuffling datasets.
+            dataset_pickle_dir: Directory in which the val and train set will be presaved as
+                pickle objects. Setting this speeds up instantiation of multiple workers a lot.
         """
         super().__init__()
 
@@ -131,6 +135,7 @@ class BaseStreamedDataModule(LightningDataModule):
         self.train_period = train_period
         self.val_period = val_period
         self.seed = seed
+        self.dataset_pickle_dir = dataset_pickle_dir
 
         self._common_dataloader_kwargs = dict(
             batch_size=batch_size,
@@ -143,6 +148,7 @@ class BaseStreamedDataModule(LightningDataModule):
             worker_init_fn=None,
             prefetch_factor=prefetch_factor,
             persistent_workers=persistent_workers,
+            multiprocessing_context="spawn" if num_workers>0 else None,
         )
 
     def setup(self, stage: str | None = None):
@@ -160,6 +166,33 @@ class BaseStreamedDataModule(LightningDataModule):
 
             shuffled_indices = np.random.default_rng(seed=self.seed).permutation(len(val_dataset))
             self.val_dataset = Subset(val_dataset, shuffled_indices)
+        
+            if self.dataset_pickle_dir is not None:
+                os.makedirs(self.dataset_pickle_dir, exist_ok=True)
+                train_dataset_path = f"{self.dataset_pickle_dir}/train_dataset.pkl"
+                val_dataset_path = f"{self.dataset_pickle_dir}/val_dataset.pkl"
+
+                # For safety, these pickled datasets cannot be overwritten.
+                # See: https://github.com/openclimatefix/pvnet/pull/445
+                for path in [train_dataset_path, val_dataset_path]:
+                    if os.path.exists(path):
+                        raise FileExistsError(
+                            f"The pickled dataset path '{path}' already exists. Make sure that "
+                            "this can be safely deleted (i.e. not currently being used by any "
+                            "training run) and delete it manually. Else change the "
+                            "`dataset_pickle_dir` to a different directory."
+                        )
+
+                self.train_dataset.presave_pickle(train_dataset_path)
+                self.train_dataset.presave_pickle(val_dataset_path)
+
+    def teardown(self, stage: str | None = None) -> None:
+        """Clean up the pickled datasets"""
+        if self.dataset_pickle_dir is not None:
+            for filename in ["val_dataset.pkl", "train_dataset.pkl"]:
+                filepath = f"{self.dataset_pickle_dir}/{filename}"
+                if os.path.exists(filepath):
+                    os.remove(filepath)
 
     def _get_streamed_samples_dataset(
         self,
